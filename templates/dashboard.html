@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SharePoint Backup Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        body { background-color: #f5f7fb; }
+        .metric { font-size: 1.25rem; font-weight: 600; }
+        .card-title { font-weight: 600; }
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+  <div class="container">
+    <a class="navbar-brand" href="{{ url_for('dashboard') }}">SharePoint Backup</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="mainNav">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('backup_history') }}">History</a></li>
+        {% if current_user.is_authenticated and current_user.role == 'admin' %}
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('schedules') }}">Schedules</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('users_list') }}">Users</a></li>
+        {% endif %}
+      </ul>
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('account') }}">Account</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+<div class="container pb-5">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category in ['danger','error'] else category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="card-title mb-0">Storage</div>
+                        <span class="badge bg-secondary">GB</span>
+                    </div>
+                    <div class="row align-items-center">
+                        <div class="col-6">
+                            <canvas id="diskChart" height="140"></canvas>
+                        </div>
+                        <div class="col-6">
+                            <div class="metric">{{ disk.free }} free</div>
+                            <div class="text-muted">of {{ disk.total }} total</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="card-title mb-0">Backup Results</div>
+                        <div class="btn-group" role="group" aria-label="Range">
+                            <a class="btn btn-sm {{ 'btn-primary' if selected_range==7 else 'btn-outline-primary' }}" href="{{ url_for('dashboard', range='7') }}">7d</a>
+                            <a class="btn btn-sm {{ 'btn-primary' if selected_range==30 else 'btn-outline-primary' }}" href="{{ url_for('dashboard', range='30') }}">30d</a>
+                        </div>
+                    </div>
+                    <canvas id="historyChart" height="120"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+        <div class="card-title mb-0">Sites to Backup</div>
+        <small class="text-muted">Manage the list of SharePoint sites</small>
+        </div>
+        </div>
+        {% if current_user.is_authenticated and current_user.role == 'admin' %}
+        <div class="row g-3 mb-3">
+        <div class="col-12 col-lg-8 col-xl-6 mx-auto">
+        <label class="form-label">Add site URLs</label>
+        <form method="POST" onsubmit="return prepareSitesSubmit();">
+          <div id="chip-box" class="form-control d-flex flex-wrap gap-2 align-items-center" style="min-height:42px;">
+            <input id="chip-input" type="text" class="border-0 flex-grow-1" placeholder="Type a URL and press Enter or comma" style="outline:none; min-width:220px;">
+          </div>
+          <input type="hidden" name="site_urls_text" id="site_urls_text">
+          <div class="d-flex justify-content-end mt-2">
+            <button type="submit" class="btn btn-primary">Add Sites</button>
+          </div>
+        </form>
+        <small class="text-muted">Tip: Paste multiple URLs; they will be split automatically.</small>
+        <script>
+        (function(){
+          const box = document.getElementById('chip-box');
+          const input = document.getElementById('chip-input');
+          window._chips = new Set();
+
+          function updateHidden(){
+            // handled on submit
+          }
+          function createChip(text){
+            const span = document.createElement('span');
+            span.className = 'badge rounded-pill text-bg-secondary d-inline-flex align-items-center';
+            span.textContent = text;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn-close btn-close-white ms-2';
+            btn.setAttribute('aria-label','Remove');
+            btn.addEventListener('click', ()=>{
+              window._chips.delete(text);
+              span.remove();
+              updateHidden();
+            });
+            span.appendChild(btn);
+            return span;
+          }
+          function addTexts(value){
+            const parts = String(value || '').split(/[\n,]+/).map(s=>s.trim()).filter(Boolean);
+            for(const p of parts){
+              if(!window._chips.has(p)){
+                window._chips.add(p);
+                box.insertBefore(createChip(p), input);
+              }
+            }
+            input.value = '';
+            updateHidden();
+          }
+          window.prepareSitesSubmit = function(){
+            if (input.value && input.value.trim()) {
+              addTexts(input.value);
+            }
+            document.getElementById('site_urls_text').value = Array.from(window._chips || []).join(',');
+            return true;
+          }
+          input.addEventListener('keydown', (e)=>{
+            if(e.key === 'Enter' || e.key === ','){
+              e.preventDefault();
+              addTexts(input.value);
+            } else if(e.key === 'Backspace' && !input.value){
+              // remove last chip
+              const chips = box.querySelectorAll('span.badge');
+              if(chips.length){
+                const last = chips[chips.length-1];
+                const text = last.childNodes[0].nodeValue;
+                window._chips.delete(text);
+                last.remove();
+                updateHidden();
+              }
+            }
+          });
+          input.addEventListener('paste', (e)=>{
+            e.preventDefault();
+            const text = (e.clipboardData || window.clipboardData).getData('text');
+            addTexts(text);
+          });
+        })();
+        </script>
+        </div>
+        </div>
+        {% endif %}
+        <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>#</th><th>Site URL</th>{% if current_user.is_authenticated and current_user.role == 'admin' %}<th class="text-end">Actions</th>{% endif %}</tr></thead>
+                    <tbody>
+                        {% for url in site_urls %}
+                        <tr>
+                            <td class="text-muted">{{ loop.index }}</td>
+                            {% if current_user.is_authenticated and current_user.role == 'admin' %}
+                            <td>
+                                <form class="d-flex gap-2" method="POST" action="{{ url_for('sites_edit', idx=loop.index0) }}">
+                                    <input id="site-input-{{ loop.index0 }}" name="url" class="form-control" value="{{ url }}" />
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('site-input-{{ loop.index0 }}').focus();">Edit</button>
+                                        <button class="btn btn-outline-primary" type="submit">Save</button>
+                                    </div>
+                                </form>
+                            </td>
+                            <td class="text-end">
+                                <a href="{{ url_for('sites_delete', idx=loop.index0) }}" class="btn btn-outline-danger btn-sm" onclick="return confirm('Delete this site?');">Delete</a>
+                            </td>
+                            {% else %}
+                            <td>{{ url }}</td>
+                            {% endif %}
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="{% if current_user.is_authenticated and current_user.role == 'admin' %}3{% else %}2{% endif %}" class="text-muted">No sites added yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="card-title mb-0">Backup Controls</div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="{{ url_for('backup_now') }}" class="btn btn-success">Run Full Backup</a>
+                        <a href="{{ url_for('backup_incremental') }}" class="btn btn-warning">Run Incremental</a>
+                        {% if current_user.is_authenticated and current_user.role == 'admin' %}
+                        <a href="{{ url_for('schedules') }}" class="btn btn-outline-secondary">Manage Schedules</a>
+                        {% endif %}
+                        <a href="{{ url_for('backup_history') }}" class="btn btn-outline-info">View History</a>
+                    </div>
+                    <hr>
+                    <div>
+                        <div class="card-title">Backup Progress</div>
+                        <div class="progress mb-2" style="height: 26px;">
+                            <div id="progress-bar" class="progress-bar" role="progressbar" style="width:0%">0%</div>
+                        </div>
+                        <div id="progress-status" class="text-muted">Status: Idle</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="card-title">Latest Results</div>
+                    <div class="row">
+                        <div class="col">
+                            <div class="fw-semibold">Full</div>
+                            <ul class="list-group small">
+                                {% for result in backup_results.full %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span class="text-truncate" style="max-width: 70%">{{ result.site }}</span>
+                                    {% if result.status == 'success' %}
+                                    <span class="badge bg-success">Success</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Fail</span>
+                                    {% if result.error %}<span class="text-muted">({{ result.error }})</span>{% endif %}
+                                    {% endif %}
+                                </li>
+                                {% else %}
+                                <li class="list-group-item text-muted">No full backup results.</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div class="col">
+                            <div class="fw-semibold">Incremental</div>
+                            <ul class="list-group small">
+                                {% for result in backup_results.incremental %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span class="text-truncate" style="max-width: 70%">{{ result.site }}</span>
+                                    {% if result.status == 'success' %}
+                                    <span class="badge bg-success">Success</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Fail</span>
+                                    {% if result.error %}<span class="text-muted">({{ result.error }})</span>{% endif %}
+                                    {% endif %}
+                                </li>
+                                {% else %}
+                                <li class="list-group-item text-muted">No incremental backup results.</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// Progress polling
+function updateProgress() {
+  fetch('/progress')
+    .then(r => r.json())
+    .then(data => {
+      const p = data.percent || 0;
+      document.getElementById('progress-bar').style.width = p + '%';
+      document.getElementById('progress-bar').innerText = p + '%';
+      document.getElementById('progress-status').innerText = 'Status: ' + (data.status || 'Idle');
+    });
+}
+setInterval(updateProgress, 2000); updateProgress();
+
+// Charts
+const diskTotal = {{ disk.total | default(0) }};
+const diskFree = {{ disk.free | default(0) }};
+const diskUsed = Math.max(diskTotal - diskFree, 0);
+new Chart(document.getElementById('diskChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Used', 'Free'],
+    datasets: [{ data: [diskUsed, diskFree], backgroundColor: ['#0d6efd', '#20c997'] }]
+  },
+  options: { plugins: { legend: { position: 'bottom' } }, cutout: '60%' }
+});
+
+const labels = {{ chart_labels | tojson }};
+const success = {{ chart_success | tojson }};
+const fail = {{ chart_fail | tojson }};
+new Chart(document.getElementById('historyChart'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [
+      { label: 'Success', data: success, backgroundColor: '#198754' },
+      { label: 'Fail', data: fail, backgroundColor: '#dc3545' }
+    ]
+  },
+  options: {
+    responsive: true,
+    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } },
+    plugins: { legend: { position: 'bottom' } }
+  }
+});
+</script>
+</body>
+</html>
