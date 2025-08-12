@@ -8,65 +8,33 @@
 <body class="bg-light">
 <div class="container py-4">
     <h1 class="mb-4">Backup Schedules</h1>
-
-    <div class="card mb-4">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Create Multiple Schedules (one per site)</span>
-      </div>
-      <div class="card-body">
-        <form method="POST">
-          <input type="hidden" name="bulk" value="1">
-          <div class="row g-2 mb-2">
-            <div class="col-md-6">
-              <label class="form-label">Name Prefix</label>
-              <input name="bulk_name_prefix" class="form-control" placeholder="e.g., Nightly Backup">
-            </div>
-          </div>
-          <div class="table-responsive">
-            <table class="table align-middle">
-              <thead>
-                <tr>
-                  <th style="width:40px;">Use</th>
-                  <th>Site</th>
-                  <th style="width:140px;">Frequency</th>
-                  <th style="width:140px;">Time</th>
-                  <th style="width:160px;">Type</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for url in site_urls %}
-                <tr>
-                  <td><input type="checkbox" name="row_{{ loop.index0 }}_enabled"></td>
-                  <td class="text-truncate" title="{{ url }}">{{ url }}</td>
-                  <td>
-                    <select class="form-select" name="row_{{ loop.index0 }}_frequency">
-                      <option value="daily">Daily</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="monthly">Monthly</option>
-                      <option value="quarterly">Quarterly</option>
-                      <option value="yearly">Yearly</option>
-                    </select>
-                  </td>
-                  <td><input type="time" class="form-control" name="row_{{ loop.index0 }}_time"></td>
-                  <td>
-                    <select class="form-select" name="row_{{ loop.index0 }}_backup_type">
-                      <option value="full">Full Backup</option>
-                      <option value="incremental">Incremental</option>
-                    </select>
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          <div class="d-flex justify-content-end">
-            <button type="submit" class="btn btn-primary">Create Selected</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-        <div class="card">
+    <form method="POST" class="row g-3 mb-4 align-items-end">
+        <div class="col-md-3">
+            <input name="name" class="form-control" placeholder="Schedule Name" required>
+        </div>
+        <div class="col-md-2">
+            <select name="frequency" class="form-select" required>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="yearly">Yearly</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <input type="time" name="time" class="form-control" required>
+        </div>
+        <div class="col-md-2">
+            <select name="backup_type" class="form-select" required>
+                <option value="full">Full Backup</option>
+                <option value="incremental">Incremental Backup</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-primary w-100">Add Schedule</button>
+        </div>
+    </form>
+    <div class="card">
         <div class="card-header">Current Schedules</div>
         <ul class="list-group list-group-flush">
             {% for sched in schedules %}
@@ -77,11 +45,6 @@
                         <span class="badge bg-secondary">{{ sched.frequency|default('custom')|capitalize }}</span>
                         <span class="ms-2">{{ sched.cron }}</span>
                         <span class="badge bg-info ms-2">{{ sched.backup_type|capitalize }}</span>
-                        {% if sched.sites and sched.sites|length > 0 %}
-                        <div class="small text-muted mt-1">Sites: {{ sched.sites | join(', ') }}</div>
-                        {% else %}
-                        <div class="small text-muted mt-1">Sites: All</div>
-                        {% endif %}
                     </div>
                     <div>
                         <a href="{{ url_for('edit_schedules', idx=idx) }}" class="btn btn-sm btn-warning me-2">Edit</a>
@@ -94,4 +57,4 @@
     <a href="{{ url_for('dashboard') }}" class="btn btn-link mt-3">Back to Dashboard</a>
 </div>
 </body>
-</html>
+</html>8e06ec84-da75-4c92-ae63-779c170ef09d
