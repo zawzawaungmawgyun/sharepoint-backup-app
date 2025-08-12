@@ -2,7 +2,7 @@ import os
 import json
 import time
 from datetime import datetime, timedelta
-from flask import Flask, render_template, render_template_string, request, redirect, url_for, flash, session
+from flask import Flask, render_template, render_template_string, request, redirect, url_for, flash, session, jsonify, make_response
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -13,7 +13,18 @@ from dotenv import load_dotenv
 load_dotenv()
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
-scheduler = BackgroundScheduler()
+# Configure APScheduler with safe defaults for multiple jobs
+scheduler = BackgroundScheduler(
+    executors={
+        'default': {'type': 'threadpool', 'max_workers': int(os.getenv('SCHED_MAX_WORKERS', '5'))}
+    },
+    job_defaults={
+        'coalesce': True,
+        'max_instances': 1,
+        'misfire_grace_time': 600
+    },
+    timezone=os.getenv('TZ', 'UTC')
+)
 # Force fresh login after each server start by tracking start time
 app.config['SERVER_STARTED_AT'] = int(time.time())
 
@@ -219,13 +230,31 @@ from backup import progress
 
 @app.route('/progress')
 def get_progress():
-    return progress
+    # Make a copy so we can safely adjust the response without mutating global state
+    data = dict(progress)
+    if data.get('status') == 'Done':
+        # Force 100% on completion in case the client missed the final increment
+        data['current'] = data.get('total', data.get('current', 0))
+        data['percent'] = 100
+    resp = make_response(jsonify(data))
+    # Prevent browser/proxy caching to keep the progress live
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
 
 def scheduled_backup():
     run_backup(site_urls, incremental=True)
 
-# Schedule incremental backup every day at 2am
-scheduler.add_job(scheduled_backup, 'cron', hour=2, minute=0)
+# Schedule incremental backup every day at 2am (managed job)
+scheduler.add_job(
+    scheduled_backup,
+    'cron',
+    id='daily_incremental',
+    hour=2,
+    minute=0,
+    replace_existing=True,
+    max_instances=1
+)
 
 @app.route('/schedules', methods=['GET', 'POST'])
 @login_required
@@ -368,11 +397,12 @@ def register_schedules():
                 hour=cron_parts[1],
                 day=cron_parts[2],
                 month=cron_parts[3],
-                day_of_week=cron_parts[4]
+                day_of_week=cron_parts[4],
+                replace_existing=True,
+                max_instances=1
             )
 
-# Call register_schedules() after scheduler.start() and after any schedule add/edit/delete
-scheduler = BackgroundScheduler()
+# Initialize scheduler and register managed schedules
 scheduler.start()
 register_schedules()
 
