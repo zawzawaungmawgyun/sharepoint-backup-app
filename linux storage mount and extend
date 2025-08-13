@@ -97,3 +97,81 @@ Copy
 Edit
 sudo resize2fs /dev/extstorage_vg/extstorage_lv
 ✅ Now your storage is bigger without losing existing data.
+
+
+sudo chmod -R 775 /mnt/backup/
+
+1. Check Current Date & Time
+bash
+Copy
+Edit
+date
+Example output:
+
+yaml
+Copy
+Edit
+Wed Aug 13 16:12:45 +0630 2025
+2. View Current Timezone
+bash
+Copy
+Edit
+timedatectl
+You’ll see something like:
+
+yaml
+Copy
+Edit
+               Local time: Wed 2025-08-13 16:12:45 +0630
+           Universal time: Wed 2025-08-13 09:42:45 UTC
+                 Timezone: Asia/Yangon (+0630, +0630)
+System clock synchronized: yes
+3. Set Timezone
+List all available timezones:
+
+bash
+Copy
+Edit
+timedatectl list-timezones
+Set a timezone (example: Asia/Yangon):
+
+bash
+Copy
+Edit
+sudo timedatectl set-timezone Asia/Yangon
+4. Enable Automatic Time Sync (NTP)
+bash
+Copy
+Edit
+sudo timedatectl set-ntp true
+Check status:
+
+bash
+Copy
+Edit
+timedatectl
+System clock synchronized: yes means it’s working.
+
+5. Set Time Manually (if NTP is off)
+First, disable NTP:
+
+bash
+Copy
+Edit
+sudo timedatectl set-ntp false
+Set date & time (example: Aug 13, 2025, 16:30):
+
+bash
+Copy
+Edit
+sudo timedatectl set-time '2025-08-13 16:30:00'
+Verify:
+
+bash
+Copy
+Edit
+date
+
+
+
+
