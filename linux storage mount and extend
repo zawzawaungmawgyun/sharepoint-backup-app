@@ -1,0 +1,98 @@
+Step 1: Install LVM tools (if not installed)
+bash
+Copy
+Edit
+sudo apt update
+sudo apt install lvm2 -y       # For Ubuntu/Debian
+# OR for RHEL/CentOS
+sudo yum install lvm2 -y
+Step 2: Prepare the disk for LVM
+bash
+Copy
+Edit
+sudo pvcreate /dev/vdb
+This initializes /dev/vdb as a physical volume.
+
+Step 3: Create a volume group
+bash
+Copy
+Edit
+sudo vgcreate extstorage_vg /dev/vdb
+extstorage_vg is the name of the volume group.
+
+You can add more disks to this VG later to expand storage.
+
+Step 4: Create a logical volume
+bash
+Copy
+Edit
+sudo lvcreate -L 50G -n extstorage_lv extstorage_vg
+50G = initial size (you can use all available space by -l 100%FREE).
+
+extstorage_lv = logical volume name.
+
+Step 5: Format the logical volume
+bash
+Copy
+Edit
+sudo mkfs.ext4 /dev/extstorage_vg/extstorage_lv
+Step 6: Mount the logical volume
+bash
+Copy
+Edit
+sudo mkdir -p /mnt/extstorage
+sudo mount /dev/extstorage_vg/extstorage_lv /mnt/extstorage
+Check:
+
+bash
+Copy
+Edit
+df -h
+Step 7: Make it persistent at boot
+Edit /etc/fstab:
+
+bash
+Copy
+Edit
+sudo nano /etc/fstab
+Add:
+
+bash
+Copy
+Edit
+/dev/extstorage_vg/extstorage_lv  /mnt/extstorage  ext4  defaults  0  2
+Save and test:
+
+bash
+Copy
+Edit
+sudo umount /mnt/extstorage
+sudo mount -a
+Step 8: Dynamically extend storage later
+If you later add another disk /dev/vdc:
+
+Initialize as PV:
+
+bash
+Copy
+Edit
+sudo pvcreate /dev/vdc
+Extend volume group:
+
+bash
+Copy
+Edit
+sudo vgextend extstorage_vg /dev/vdc
+Extend logical volume:
+
+bash
+Copy
+Edit
+sudo lvextend -l +100%FREE /dev/extstorage_vg/extstorage_lv
+Resize filesystem:
+
+bash
+Copy
+Edit
+sudo resize2fs /dev/extstorage_vg/extstorage_lv
+✅ Now your storage is bigger without losing existing data.
