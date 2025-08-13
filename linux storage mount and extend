@@ -27,6 +27,7 @@ bash
 Copy
 Edit
 sudo lvcreate -L 50G -n extstorage_lv extstorage_vg
+sudo lvcreate -l 100%FREE -n SP_lv SP_vg
 50G = initial size (you can use all available space by -l 100%FREE).
 
 extstorage_lv = logical volume name.
