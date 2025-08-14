@@ -69,6 +69,7 @@ Copy
 Edit
 sudo umount /mnt/extstorage
 sudo mount -a
+
 Step 8: Dynamically extend storage later
 If you later add another disk /dev/vdc:
 
@@ -97,6 +98,47 @@ Copy
 Edit
 sudo resize2fs /dev/extstorage_vg/extstorage_lv
 ✅ Now your storage is bigger without losing existing data.
+1️⃣ Make sure LVM sees the free space
+sudo pvresize /dev/vdb
+
+
+(If /dev/vdb had partitions like /dev/vdb1, use that instead.)
+
+Check available space:
+
+sudo vgdisplay SP_vg
+
+
+Look for Free PE / Size — that’s your unused space.
+
+2️⃣ Extend the logical volume to fill all free space
+sudo lvextend -l +100%FREE /dev/SP_vg/SP_lv
+
+3️⃣ Resize the filesystem online
+sudo resize2fs /dev/SP_vg/SP_lv
+
+4️⃣ Verify
+df -h /mnt/backup1️⃣ Make sure LVM sees the free space
+sudo pvresize /dev/vdb
+
+
+(If /dev/vdb had partitions like /dev/vdb1, use that instead.)
+
+Check available space:
+
+sudo vgdisplay SP_vg
+
+
+Look for Free PE / Size — that’s your unused space.
+
+2️⃣ Extend the logical volume to fill all free space
+sudo lvextend -l +100%FREE /dev/SP_vg/SP_lv
+
+3️⃣ Resize the filesystem online
+sudo resize2fs /dev/SP_vg/SP_lv
+
+4️⃣ Verify
+df -h /mnt/backup
 
 
 sudo chmod -R 775 /mnt/backup/
