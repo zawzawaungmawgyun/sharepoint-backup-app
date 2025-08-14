@@ -173,5 +173,14 @@ Edit
 date
 
 
+ls -l /mnt/backup/
+sudo chown -R ubuntu:ubuntu /mnt/backup/
+sudo chmod -R 775 /mnt/backup/
+
+sudo apt update
+    2  sudo sed -i 's|http://|https://|g' /etc/apt/sources.list
+    3  sudo apt update
+    4  sudo apt upgrade
+
 
 
